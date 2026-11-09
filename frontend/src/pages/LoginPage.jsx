@@ -32,9 +32,9 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="grid min-h-[calc(100vh-5rem)] place-items-center px-5 py-10">
-      <div className="glass w-full max-w-md rounded-3xl p-8 animate-fade-up">
-        <h1 className="font-display text-5xl leading-tight">Welcome back.</h1>
+    <div className="grid min-h-[calc(100dvh-5rem)] place-items-center px-3 py-6 sm:px-5 sm:py-10">
+      <div className="glass w-full max-w-md rounded-3xl p-5 sm:p-8 animate-fade-up">
+        <h1 className="font-display text-4xl leading-tight sm:text-5xl">Welcome back.</h1>
         <p className="mb-8 mt-3 text-sm text-muted">Sign in to ask your documents.</p>
 
         <form onSubmit={submit} className="space-y-4">

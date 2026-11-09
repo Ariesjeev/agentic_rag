@@ -18,6 +18,19 @@ export default function Navbar() {
   const { me, logout } = useApp();
   const { theme, toggle } = useTheme();     // ← the hook
   const navigate = useNavigate();
+  const platform = navigator.userAgentData?.platform || navigator.platform;
+  const usesCommandKey = /mac|iphone|ipad|ipod/i.test(platform);
+  const searchShortcut = usesCommandKey ? '⌘K' : 'Ctrl K';
+
+  function openCommandPalette() {
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'k',
+        metaKey: usesCommandKey,
+        ctrlKey: !usesCommandKey,
+      })
+    );
+  }
 
   return (
     <header className="sticky top-0 z-40 px-3 pt-3">
@@ -32,12 +45,17 @@ export default function Navbar() {
         </Link>
 
         {/* Center nav */}
-        <nav className="hidden flex-1 items-center justify-center gap-3 md:flex">
+        <nav className="hidden flex-1 items-center justify-center gap-3 lg:flex">
           {!me && (
             <>
               <NavLink to="/" className={linkClass} end>Home</NavLink>
               {/* <a href="#principles" className={linkClass}>Principles</a> */}
-              <a href="#how" className={linkClass}>How it works</a>
+              <a
+                href="#how"
+                className="rounded-full px-4 py-2 text-sm text-muted transition hover:bg-surface-2/60 hover:text-ink"
+              >
+                How it works
+              </a>
             </>
           )}
           {me && (
@@ -51,25 +69,23 @@ export default function Navbar() {
         {/* Right side */}
         <div className="ml-auto flex items-center gap-2">
 
-          {/* Cmd+K hint button */}
           <button
-            onClick={() => {
-              const e = new KeyboardEvent('keydown', { key: 'k', metaKey: true });
-              document.dispatchEvent(e);
-            }}
-            className="hidden items-center gap-2 rounded-full border border-border bg-surface-2/60 px-3 py-1.5 text-xs text-muted transition hover:text-ink md:flex"
+            type="button"
+            onClick={openCommandPalette}
+            aria-label={`Search (${searchShortcut})`}
+            title={`Search (${searchShortcut})`}
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border bg-surface-2/60 text-xs text-muted transition hover:text-ink md:flex md:h-auto md:w-auto md:items-center md:gap-2 md:px-3 md:py-1.5"
           >
             <Search size={13} />
-            <span>Search</span>
-            <Kbd>⌘K</Kbd>
+            <span className="hidden md:inline">Search</span>
+            <span className="hidden md:inline-flex"><Kbd>{searchShortcut}</Kbd></span>
           </button>
 
-          {/* Standalone theme toggle (visible on md+) */}
-          <ThemeToggle className="hidden md:grid" />
+          <ThemeToggle className="hidden lg:grid" />
 
           {!me ? (
             <>
-              <Button variant="ghost" onClick={() => navigate('/login')} className="hidden md:inline-flex">
+              <Button variant="ghost" onClick={() => navigate('/login')} className="hidden lg:inline-flex">
                 <LogIn size={15} className="mr-1.5" /> Sign in
               </Button>
               <Button variant="primary" onClick={() => navigate('/register')}>
@@ -78,7 +94,7 @@ export default function Navbar() {
             </>
           ) : (
             <>
-              <Button variant="primary" onClick={() => navigate('/chat')} className="hidden md:inline-flex">
+              <Button variant="primary" onClick={() => navigate('/chat')} className="hidden lg:inline-flex">
                 <LayoutDashboard size={15} className="mr-1.5" /> Open app
               </Button>
 

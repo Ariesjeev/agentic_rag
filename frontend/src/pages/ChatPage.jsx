@@ -319,7 +319,7 @@ export default function ChatPage() {
 
   return (
     <>
-      <header className="glass sticky top-0 z-10 flex items-center justify-between border-b border-white/5 px-6 py-4">
+      <header className="glass sticky top-0 z-10 flex items-center justify-between border-b border-white/5 px-3 py-3 sm:px-6 sm:py-4">
         <div className="min-w-0">
           <div className="truncate font-display text-2xl leading-tight">
             {current?.title || 'New chat'}
@@ -328,7 +328,7 @@ export default function ChatPage() {
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-6 py-8">
+      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-3 py-5 sm:px-6 sm:py-8">
         {loadingMessages && (
           <p className="m-auto text-sm text-muted">
             Loading conversation…
@@ -341,7 +341,7 @@ export default function ChatPage() {
               <Send size={20} strokeWidth={1.75} />
             </div>
 
-            <h2 className="font-display text-4xl leading-tight">
+            <h2 className="font-display text-3xl leading-tight sm:text-4xl">
               Ask your documents anything
             </h2>
 
@@ -384,13 +384,13 @@ export default function ChatPage() {
       </div>
 
       {error && (
-        <p role="alert" className="px-6 pb-2 text-sm text-danger">
+        <p role="alert" className="px-3 pb-2 text-sm text-danger sm:px-6">
           {error}
         </p>
       )}
 
       <form
-        className="glass sticky bottom-0 flex items-end gap-3 border-t border-white/5 bg-black/20 px-6 py-4"
+        className="glass sticky bottom-0 flex items-end gap-2 border-t border-white/5 bg-black/20 px-3 py-3 sm:gap-3 sm:px-6 sm:py-4"
         onSubmit={(event) => {
           event.preventDefault();
           send();

@@ -42,7 +42,7 @@ function SectionTitle({ children, count }) {
   );
 }
 
-export default function Sidebar() {
+export default function Sidebar({ mobileOpen = false, onNavigate = () => {} }) {
   const {
     me,
     threads,
@@ -118,11 +118,21 @@ export default function Sidebar() {
   ];
 
   return (
-    <aside className="glass flex min-h-0 flex-col rounded-2xl border border-border">
+    <aside
+      className={cx(
+        'glass flex min-h-0 flex-col rounded-2xl border border-border',
+        mobileOpen
+          ? 'fixed inset-y-20 left-3 z-50 w-[min(280px,calc(100vw-1.5rem))] shadow-xl lg:static lg:z-auto lg:w-auto lg:shadow-none'
+          : 'hidden lg:flex'
+      )}
+    >
       <div className="p-3">
         <Button
           variant="primary"
-          onClick={() => navigate('/chat')}
+          onClick={() => {
+            navigate('/chat');
+            onNavigate();
+          }}
           className="flex w-full items-center justify-center gap-2 py-2.5"
         >
           <Plus size={16} strokeWidth={2.4} />
@@ -132,7 +142,7 @@ export default function Sidebar() {
 
       <nav className="flex flex-col gap-0.5 px-3">
         {navItems.map(({ to, label, Icon }) => (
-          <NavLink key={to} to={to} className={navClass}>
+          <NavLink key={to} to={to} className={navClass} onClick={onNavigate}>
             <Icon
               size={18}
               strokeWidth={1.75}
@@ -161,6 +171,7 @@ export default function Sidebar() {
               >
                 <NavLink
                   to={`/chat/${thread.thread_id}`}
+                  onClick={onNavigate}
                   className={({ isActive }) =>
                     cx(
                       'flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2 text-sm transition',

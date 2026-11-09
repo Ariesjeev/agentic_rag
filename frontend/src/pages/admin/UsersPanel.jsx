@@ -59,7 +59,7 @@ export default function UsersPanel() {
 
   return (
     <div className="space-y-6">
-      <form onSubmit={handleCreate} className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
+      <form onSubmit={handleCreate} className="bg-white border border-slate-200 rounded-xl p-3 sm:p-5 space-y-3">
         <h2 className="text-sm font-semibold text-slate-900">Add a user</h2>
         <div className="flex flex-wrap gap-3">
           <input
@@ -98,8 +98,8 @@ export default function UsersPanel() {
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <table className="w-full min-w-[400px] text-sm">
           <thead className="bg-slate-50 text-slate-500 text-left">
             <tr>
               <th className="px-4 py-2 font-medium">Username</th>

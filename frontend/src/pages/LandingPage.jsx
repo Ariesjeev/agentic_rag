@@ -35,34 +35,34 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="px-3 pb-3">
+    <div className="px-2 pb-3 sm:px-3">
       <div className="mx-auto max-w-[1400px]">
         {/* HERO */}
-        <section className="relative mt-3 overflow-hidden rounded-3xl border border-white/5 bg-surface/60 p-10 md:p-16">
-          <div className="relative grid items-center gap-14 md:grid-cols-[1.15fr_1fr]">
+        <section className="relative mt-3 overflow-hidden rounded-3xl border border-white/5 bg-surface/60 p-5 sm:p-8 md:p-16">
+          <div className="relative grid items-center gap-8 md:gap-14 md:grid-cols-[1.15fr_1fr]">
             <div>
               <p className="mb-6 text-sm uppercase tracking-[0.2em]" style={{ color: 'var(--color-blue)' }}>
                 Private document Q&amp;A
               </p>
 
-              <h1 className="font-display text-6xl leading-[1.02] md:text-8xl">
+              <h1 className="font-display text-4xl leading-[1.02] sm:text-6xl md:text-8xl">
                 Ask your documents.
                 <br />
                 <em style={{ color: 'var(--color-blue)' }}>Trust every answer.</em>
               </h1>
 
-              <p className="mt-8 max-w-lg text-lg text-muted">
+              <p className="mt-6 max-w-lg text-base text-muted sm:mt-8 sm:text-lg">
                 Answers come only from the files each person is allowed to read with the exact sentence they came from.
               </p>
 
               {/* Try-it input */}
-              <form onSubmit={ask} className="glass mt-10 flex max-w-xl items-center gap-2 rounded-2xl p-2">
+              <form onSubmit={ask} className="glass mt-8 flex max-w-xl items-center gap-2 rounded-2xl p-2 sm:mt-10">
                 <Send size={18} className="ml-3" style={{ color: 'var(--color-blue)' }} />
                 <input
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   placeholder="Ask anything about your documents…"
-                  className="flex-1 bg-transparent px-2 py-3 text-sm text-ink placeholder:text-faint focus:outline-none"
+                  className="min-w-0 flex-1 bg-transparent px-2 py-3 text-sm text-ink placeholder:text-faint focus:outline-none"
                 />
                 <button
                   type="submit"
@@ -102,9 +102,9 @@ export default function LandingPage() {
         </section>
 
         {/* PRINCIPLES */}
-        <section className="mt-3 rounded-3xl border border-white/5 bg-surface/40 p-10 md:p-14">
-          <h2 className="font-display text-5xl leading-tight md:text-6xl">Built around who can see what.</h2>
-          <div className="mt-14 grid gap-x-14 gap-y-12 md:grid-cols-2">
+        <section className="mt-3 rounded-3xl border border-white/5 bg-surface/40 p-5 sm:p-8 md:p-14">
+          <h2 className="font-display text-3xl leading-tight sm:text-5xl md:text-6xl">Built around who can see what.</h2>
+          <div className="mt-8 grid gap-x-14 gap-y-8 md:mt-14 md:grid-cols-2 md:gap-y-12">
             {principles.map(([title, body, Icon]) => (
               <div key={title} className="border-t border-border pt-6">
                 <div
@@ -125,19 +125,19 @@ export default function LandingPage() {
 
         {/* HOW — blue section, white cards */}
         <section
-          className="mt-3 overflow-hidden rounded-3xl px-10 py-14 md:px-14"
+          className="mt-3 overflow-hidden rounded-3xl px-5 py-8 sm:px-8 sm:py-10 md:px-14 md:py-14"
           style={{ background: 'var(--color-blue-deep)', color: '#ffffff' }}
         >
-          <h2 className="font-display text-5xl leading-tight text-white md:text-6xl">Three steps.</h2>
+          <h2 className="font-display text-4xl leading-tight text-white sm:text-5xl md:text-6xl">Three steps.</h2>
           <p className="mt-4 max-w-2xl text-sm text-white/70">
             From a folder of files to trusted answers — with permissions checked at every layer.
           </p>
 
-          <div className="mt-14 grid gap-6 md:grid-cols-3">
+          <div className="mt-8 grid gap-4 sm:mt-10 sm:gap-6 md:mt-14 md:grid-cols-3">
             {steps.map(([title, body, Icon], i) => (
               <div
                 key={title}
-                className="rounded-2xl border border-white/15 bg-white/5 p-7 backdrop-blur-sm"
+                className="rounded-2xl border border-white/15 bg-white/5 p-5 sm:p-7 backdrop-blur-sm"
               >
                 <div className="flex items-center justify-between">
                   <div className="grid h-11 w-11 place-items-center rounded-xl bg-white text-[color:var(--color-blue-deep)]">
@@ -153,8 +153,8 @@ export default function LandingPage() {
         </section>
 
         {/* CTA */}
-        <section className="mt-3 flex flex-col items-start justify-between gap-8 rounded-3xl border border-white/5 bg-surface/40 p-10 md:flex-row md:items-center md:p-14">
-          <h2 className="font-display text-5xl leading-tight md:text-6xl">Start with one collection.</h2>
+        <section className="mt-3 flex flex-col items-start justify-between gap-6 rounded-3xl border border-white/5 bg-surface/40 p-5 sm:p-8 md:flex-row md:items-center md:gap-8 md:p-14">
+          <h2 className="font-display text-3xl leading-tight sm:text-5xl md:text-6xl">Start with one collection.</h2>
           <Link
             to="/register"
             className="inline-flex items-center justify-center rounded-full px-7 py-3.5 text-sm font-semibold transition"
@@ -166,10 +166,10 @@ export default function LandingPage() {
 
         {/* FOOTER — blue, white text */}
         <footer
-          className="mt-3 overflow-hidden rounded-3xl px-10 py-12 md:px-14"
+          className="mt-3 overflow-hidden rounded-3xl px-5 py-8 sm:px-8 sm:py-10 md:px-14 md:py-12"
           style={{ background: 'var(--color-blue-deep)', color: '#ffffff' }}
         >
-          <div className="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr]">
+          <div className="grid gap-8 md:grid-cols-[1.4fr_1fr_1fr] md:gap-10">
             <div>
               <div className="flex items-center gap-3">
                 <span className="grid h-9 w-9 place-items-center rounded-xl bg-white text-[color:var(--color-blue-deep)]">
@@ -225,7 +225,7 @@ function ProductPreview() {
       />
 
       {/* Main card */}
-      <div className="glass relative overflow-hidden rounded-3xl p-6">
+      <div className="glass relative overflow-hidden rounded-3xl p-4 sm:p-6">
 
         {/* Top row: source + status */}
         <div className="flex items-center justify-between">
