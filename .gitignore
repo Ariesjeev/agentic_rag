@@ -1,0 +1,30 @@
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Secrets & Local Environment Variables
+.env
+
+# Vector Database & Local Data Storage
+chroma_store/
+app_data.db
+
+# Python Caches
+__pycache__/
+*.pyc
+
+
+# Streamlit Local Cache/Settings (Optional)
+.streamlit/secrets.tomldata/corpus/
+results/
+.env
+*.db
+chroma_store/
+eval_chroma/
+
+# Local backup files
+*.bak
+*.backup
+*.bak.*
+*.backup.*

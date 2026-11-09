@@ -1,0 +1,17 @@
+.env
+.env.*
+venv/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+# local databases / old Chroma / SQLite leftovers
+*.db
+*.db-shm
+*.db-wal
+data/
+# eval outputs: keep summary.json files you quote in the README, ignore the bulky rest
+evaluation/results/*/*.csv
+evaluation/results/*/*.jsonl
+EN-Ethical_Hacking.pdf
