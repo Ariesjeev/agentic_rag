@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://agentic-rag-api.mangobeach-5a2ffbb7.koreacentral.azurecontainerapps.io/:path*"
+      "destination": "https://agentic-rag-2kp6.onrender.com/:path*"
     }
   ],
   "headers": [
