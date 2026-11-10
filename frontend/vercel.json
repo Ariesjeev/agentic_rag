@@ -3,6 +3,10 @@
     {
       "source": "/api/:path*",
       "destination": "https://agentic-rag-2kp6.onrender.com/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
   "headers": [
