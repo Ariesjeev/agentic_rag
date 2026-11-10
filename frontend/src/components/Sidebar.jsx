@@ -307,6 +307,15 @@ export default function Sidebar({ mobileOpen = false, onNavigate = () => {} }) {
                 />
 
                 <MenuItem
+                  icon={Settings}
+                  label="Settings"
+                  onClick={() => {
+                    close();
+                    navigate('/settings');
+                  }}
+                />
+
+                <MenuItem
                   icon={theme === 'dark' ? Sun : Moon}
                   label={theme === 'dark' ? 'Light mode' : 'Dark mode'}
                   onClick={() => {

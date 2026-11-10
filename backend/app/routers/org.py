@@ -2,7 +2,7 @@
 routers/org.py
 --------------
 Everything an org admin does:
-  - users:  list / invite / resend invite / delete
+  - users:  list / invite / resend invite / suspend / restore / delete
   - groups: list / create / delete / add member / remove member
   - audit:  read the audit log
   - feedback: read thumbs-up/down + summary + export
@@ -28,7 +28,7 @@ from app.stores.session_store import (
 )
 from app.stores.users_store import (
     count_admins, create_user, delete_user, get_user_by_id, list_org_users,
-    set_invite_token,
+    set_invite_token, set_user_active,
 )
 from app.rag.document_processor import delete_thread_cache, delete_thread_summary
 from app.services import cleanup as cleanup_service
@@ -118,6 +118,56 @@ def org_resend_invite(user_id: str, request: Request, admin: dict = Depends(requ
         "user_id": user_id,
         "message": "A new invitation email has been sent.",
     }
+
+
+@router.post("/users/{user_id}/suspend")
+def org_suspend_user(
+    user_id: str,
+    request: Request,
+    admin: dict = Depends(require_admin),
+):
+    target = get_user_by_id(user_id)
+    if not target or target["org_id"] != admin["org_id"]:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user_id == admin["user_id"]:
+        raise HTTPException(status_code=400, detail="You can't suspend your own account")
+    if target["role"] != "member":
+        raise HTTPException(status_code=400, detail="Only member accounts can be suspended")
+
+    changed = set_user_active(user_id, False)
+    if changed:
+        audit_store.log(
+            "user_suspended",
+            admin,
+            target=user_id,
+            ip=_ip(request),
+            detail={"username": target["username"]},
+        )
+    return {"user_id": user_id, "is_active": False}
+
+
+@router.post("/users/{user_id}/restore")
+def org_restore_user(
+    user_id: str,
+    request: Request,
+    admin: dict = Depends(require_admin),
+):
+    target = get_user_by_id(user_id)
+    if not target or target["org_id"] != admin["org_id"]:
+        raise HTTPException(status_code=404, detail="User not found")
+    if target["role"] != "member":
+        raise HTTPException(status_code=400, detail="Only member accounts can be restored")
+
+    changed = set_user_active(user_id, True)
+    if changed:
+        audit_store.log(
+            "user_access_restored",
+            admin,
+            target=user_id,
+            ip=_ip(request),
+            detail={"username": target["username"]},
+        )
+    return {"user_id": user_id, "is_active": True}
 
 
 @router.delete("/users/{user_id}")

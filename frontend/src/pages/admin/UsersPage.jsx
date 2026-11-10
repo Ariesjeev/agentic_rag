@@ -28,6 +28,7 @@ export default function UsersPage() {
   const [successMessage, setSuccessMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [resendingUserId, setResendingUserId] = useState(null);
+  const [accessUserId, setAccessUserId] = useState(null);
 
   if (!users.data) {
     return <Loading error={users.error} />;
@@ -144,6 +145,41 @@ export default function UsersPage() {
     }
   }
 
+  async function toggleAccess(u) {
+    const suspend = u.is_active;
+    if (
+      suspend &&
+      !window.confirm(
+        `Suspend ${u.username}? They will be signed out and unable to access the app. Their data will be kept.`
+      )
+    ) {
+      return;
+    }
+
+    setFormError('');
+    setSuccessMessage('');
+    setAccessUserId(u.user_id);
+
+    try {
+      await api(`/org/users/${u.user_id}/${suspend ? 'suspend' : 'restore'}`, {
+        method: 'POST',
+      });
+      setSuccessMessage(
+        suspend
+          ? `${u.username}'s access has been suspended.`
+          : `${u.username}'s access has been restored.`
+      );
+      await users.reload();
+    } catch (err) {
+      setFormError(
+        err?.message ||
+          `Could not ${suspend ? 'suspend' : 'restore'} this account.`
+      );
+    } finally {
+      setAccessUserId(null);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -227,7 +263,11 @@ export default function UsersPage() {
               {u.role}
             </Pill>,
             <Pill key={`${u.user_id}-status`}>
-              {u.password_set ? 'active' : 'invited'}
+              {!u.is_active
+                ? 'suspended'
+                : u.password_set
+                  ? 'active'
+                  : 'invited'}
             </Pill>,
             u.user_id === me.user_id ? (
               <span className="text-xs text-muted">
@@ -235,6 +275,21 @@ export default function UsersPage() {
               </span>
             ) : (
               <div className="flex gap-2">
+                {u.role === 'member' && (
+                  <Button
+                    size="sm"
+                    variant={u.is_active ? 'danger' : 'subtle'}
+                    disabled={accessUserId !== null}
+                    onClick={guard(() => toggleAccess(u))}
+                  >
+                    {accessUserId === u.user_id
+                      ? 'Saving…'
+                      : u.is_active
+                        ? 'Suspend'
+                        : 'Restore access'}
+                  </Button>
+                )}
+
                 {!u.password_set && (
                   <Button
                     size="sm"

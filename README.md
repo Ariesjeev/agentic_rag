@@ -49,7 +49,7 @@ The project combines hybrid retrieval, reranking, a graph-based answer workflow,
 | Retrieval | MiniLM embeddings, BM25, RRF fusion, and FlashRank reranking |
 | Answers | Context-grounded generation, faithfulness checking, source references, and quoted passages |
 | Identity | Password hashing, HttpOnly-cookie JWT authentication, organisation membership, and role-aware routes |
-| Administration | User and group management, collection controls, audit log, feedback review, and guardrail settings |
+| Administration | User and group management, reversible member access suspension, collection controls, audit log, feedback review, and guardrail settings |
 | Guest mode | Temporary personal document collection, streamed answers, question limits, and expiry cleanup |
 | Persistence | PostgreSQL, pgvector, SQLAlchemy, and LangGraph PostgreSQL checkpoints |
 

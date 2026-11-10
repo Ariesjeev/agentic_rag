@@ -47,8 +47,11 @@ def throttle(limiter: RateLimiter, key: str) -> None:
 # -------- current user --------
 def get_current_user(user_id: str = Depends(get_current_user_id)) -> dict:
     user = get_user_by_id(user_id)
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unknown user")
+    if not user or not user.get("is_active", True):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+        )
     if not user["org_id"]:
         # Legacy user created before orgs existed: give them a personal org once.
         org_id = org_store.create_org(f"{user['username']}'s organization")

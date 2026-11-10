@@ -154,6 +154,16 @@ def login(body: LoginRequest, request: Request, response: Response):
         )
         raise bad
 
+    if not user.get("is_active", True):
+        login_fail_limiter.hit(key)
+        audit_store.log(
+            "login_suspended",
+            ip=ip,
+            username=body.identifier,
+            org_id=user["org_id"],
+        )
+        raise bad
+
     if not verify_password(body.password, user["password_hash"]):
         login_fail_limiter.hit(key)
         audit_store.log(

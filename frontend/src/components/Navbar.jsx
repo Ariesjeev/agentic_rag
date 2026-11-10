@@ -118,7 +118,7 @@ export default function Navbar() {
                     <div className="my-1 h-px bg-border" />
 
                     <MenuItem icon={UserIcon} label="Profile"  onClick={() => { close(); navigate('/profile'); }} />
-                    <MenuItem icon={Settings} label="Settings" onClick={() => { close(); navigate('/chat'); }} hint="⌘," />
+                    <MenuItem icon={Settings} label="Settings" onClick={() => { close(); navigate('/settings'); }} hint="⌘," />
 
                     {/* ─── Theme toggle lives HERE (inside the popover) ─── */}
                     <MenuItem

@@ -6,7 +6,7 @@ Persistent user accounts managed with SQLAlchemy.
 import time
 import uuid
 from typing import Optional
-from sqlalchemy import Float, String, text
+from sqlalchemy import Boolean, Float, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.config import IS_PG, logger
@@ -28,6 +28,9 @@ class User(Base):
     created_at: Mapped[float] = mapped_column(Float, nullable=False)
     org_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     role: Mapped[str] = mapped_column(String, nullable=False, server_default="member")
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("TRUE"),
+    )
 
     # One-time tokens. Stored HASHED; the plaintext only ever exists in the email.
     invite_token_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True)
@@ -35,7 +38,8 @@ class User(Base):
     reset_token_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     reset_expires_at: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
-    # Any JWT with iat < password_changed_at is rejected. Set on password change.
+    # Any JWT issued before this timestamp is rejected. Updated on password
+    # changes and member access suspension/restoration.
     password_changed_at: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
 
@@ -47,6 +51,7 @@ def _init_db() -> None:
     additions = {
         "org_id":            "TEXT",
         "role":              "TEXT NOT NULL DEFAULT 'member'",
+        "is_active":         "BOOLEAN NOT NULL DEFAULT TRUE",
         "email":             "TEXT",
         "invite_token_hash": "TEXT",
         "invite_expires_at": "REAL",
@@ -88,7 +93,10 @@ def create_user(username: str, password_hash: Optional[str], org_id: Optional[st
     logger.info("Created user: %s (org %s, role %s, email %s)", username, org_id, role, email)
     return user_id
 
-_COLS = "user_id, username, password_hash, email, org_id, role, password_changed_at"
+_COLS = (
+    "user_id, username, password_hash, email, org_id, role, "
+    "password_changed_at, is_active"
+)
 
 
 def get_user_by_username(username: str) -> Optional[dict]:
@@ -120,7 +128,8 @@ def set_user_org(user_id: str, org_id: str, role: str) -> None:
 def list_org_users(org_id: str) -> list[dict]:
     with connect() as session:
         rows = session.execute(
-            text("SELECT user_id, username, email, role, password_hash IS NOT NULL AS password_set "
+            text("SELECT user_id, username, email, role, is_active, "
+                 "password_hash IS NOT NULL AS password_set "
                  "FROM users WHERE org_id = :org_id ORDER BY username"),
             {"org_id": org_id},
         ).mappings().fetchall()
@@ -133,6 +142,20 @@ def count_admins(org_id: str) -> int:
             {"org_id": org_id},
         ).scalar()
     return count or 0
+
+
+def set_user_active(user_id: str, is_active: bool) -> bool:
+    """Set account access state and invalidate all previously issued JWTs."""
+    with connect() as session:
+        result = session.execute(
+            text(
+                "UPDATE users SET is_active = :active, password_changed_at = :now "
+                "WHERE user_id = :user_id AND is_active != :active"
+            ),
+            {"active": is_active, "now": time.time(), "user_id": user_id},
+        )
+    return result.rowcount > 0
+
 
 def delete_user(user_id: str) -> None:
     with connect() as session:

@@ -9,6 +9,8 @@ import Register from './pages/Register';
 import AcceptInvitePage from './pages/AcceptInvitePage';
 import ChatPage from './pages/ChatPage';
 import UploadPage from './pages/UploadPage';
+import ProfilePage from './pages/ProfilePage';
+import SettingsPage from './pages/SettingsPage';
 import AdminLayout from './pages/admin/AdminLayout';
 import UsersPage from './pages/admin/UsersPage';
 import GroupsPage from './pages/admin/GroupsPage';
@@ -90,11 +92,8 @@ export default function App() {
           <Route path="/chat/:threadId" element={<ChatPage />} />
           <Route path="/upload" element={<UploadPage />} />
 
-          {/* Temporary fallback until a Profile page exists. */}
-          <Route
-            path="/profile"
-            element={<Navigate to="/chat" replace />}
-          />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/settings" element={<SettingsPage />} />
 
           <Route
             path="/admin"

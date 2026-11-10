@@ -67,7 +67,7 @@ def get_current_user_id(request: Request) -> str:
             raise credentials_error
 
         user = get_user_by_id(str(user_id))
-        if not user:
+        if not user or not user.get("is_active", True):
             raise credentials_error
 
         changed_at = user.get("password_changed_at")

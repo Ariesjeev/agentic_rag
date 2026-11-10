@@ -264,6 +264,7 @@ def people():
     return {
         "admin": admin,
         "member": member,
+        "member_name": member_name,
     }
 
 
@@ -337,6 +338,52 @@ def test_org_and_admin_are_saved(people):
     assert me["role"] == "admin"
     assert me["org"] is not None
     assert me["org"]["name"].startswith("Test org admin_")
+
+
+def test_admin_can_suspend_and_restore_member_access(people):
+    admin = people["admin"]
+    member = people["member"]
+    member_name = people["member_name"]
+
+    assert client.get("/me", headers=member).status_code == 200
+
+    users = client.get("/org/users", headers=admin).json()
+    member_user = next(u for u in users if u["username"] == member_name)
+    suspended = client.post(
+        f"/org/users/{member_user['user_id']}/suspend",
+        headers=admin,
+    )
+    assert suspended.status_code == 200, suspended.text
+    assert suspended.json()["is_active"] is False
+
+    users = client.get("/org/users", headers=admin).json()
+    suspended_member = next(u for u in users if u["username"] == member_name)
+    assert suspended_member["is_active"] is False
+
+    assert client.get("/me", headers=member).status_code == 401
+
+    auth_client = TestClient(
+        app,
+        headers={"Origin": "http://localhost:5173"},
+    )
+    login_response = auth_client.post(
+        "/auth/login",
+        json={"identifier": member_name, "password": PASSWORD},
+    )
+    assert login_response.status_code == 401
+    auth_client.close()
+
+    restored = client.post(
+        f"/org/users/{suspended_member['user_id']}/restore",
+        headers=admin,
+    )
+    assert restored.status_code == 200, restored.text
+    assert restored.json()["is_active"] is True
+
+    # Suspension invalidates the member's old session even after restoration.
+    assert client.get("/me", headers=member).status_code == 401
+    restored_member = _login(member_name)
+    assert client.get("/me", headers=restored_member).status_code == 200
 
 
 def test_upload_then_answer_cites_the_document(people):
