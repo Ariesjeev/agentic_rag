@@ -53,6 +53,16 @@ class CreateUserRequest(BaseModel):
     role: str = Field(default="member", pattern="^(admin|member)$")
 
 
+class UpdateInvitedUserRequest(BaseModel):
+    """Edit the contact details of an account that has not accepted its invite."""
+    username: str = Field(
+        min_length=3,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9_.@-]+$",
+    )
+    email: EmailStr
+
+
 class GroupRequest(BaseModel):
     name: str = Field(min_length=1, max_length=64)
 

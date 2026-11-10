@@ -386,6 +386,140 @@ def test_admin_can_suspend_and_restore_member_access(people):
     assert client.get("/me", headers=restored_member).status_code == 200
 
 
+def test_admin_can_edit_pending_invite_and_must_resend(people):
+    admin = people["admin"]
+    username = _new_name("pending")
+    email = f"{username}@example.com"
+
+    response = client.post(
+        "/org/users",
+        json={"username": username, "email": email, "role": "member"},
+        headers=admin,
+    )
+    assert response.status_code == 201, response.text
+    user_id = response.json()["user_id"]
+    invite_token = _SENT_INVITES[-1]["token"]
+    _SENT_INVITES.clear()
+
+    updated_username = _new_name("renamed")
+    updated_email = f"{updated_username}@example.com"
+    response = client.patch(
+        f"/org/users/{user_id}",
+        json={"username": updated_username, "email": updated_email},
+        headers=admin,
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["invite_invalidated"] is True
+
+    assert client.post(
+        "/auth/invite/lookup",
+        json={"token": invite_token},
+    ).status_code == 404
+
+    response = client.post(
+        f"/org/users/{user_id}/invite",
+        headers=admin,
+    )
+    assert response.status_code == 200, response.text
+    assert _SENT_INVITES[-1]["username"] == updated_username
+    assert _SENT_INVITES[-1]["to"] == updated_email
+    fresh_token = _SENT_INVITES[-1]["token"]
+    _SENT_INVITES.clear()
+
+    lookup = client.post(
+        "/auth/invite/lookup",
+        json={"token": fresh_token},
+    )
+    assert lookup.status_code == 200, lookup.text
+    assert lookup.json()["username"] == updated_username
+    assert lookup.json()["email"] == updated_email
+
+    accepted = client.post(
+        "/auth/accept-invite",
+        json={"token": fresh_token, "password": PASSWORD},
+    )
+    assert accepted.status_code == 200, accepted.text
+
+    accepted_account = client.patch(
+        f"/org/users/{user_id}",
+        json={
+            "username": _new_name("not-editable"),
+            "email": f"{_new_name('used')}@example.com",
+        },
+        headers=admin,
+    )
+    assert accepted_account.status_code == 400
+
+
+def test_deleted_pending_invite_releases_username_and_email(people):
+    admin = people["admin"]
+    username = _new_name("reusable")
+    email = f"{username}@example.com"
+
+    response = client.post(
+        "/org/users",
+        json={"username": username, "email": email, "role": "member"},
+        headers=admin,
+    )
+    assert response.status_code == 201, response.text
+    user_id = response.json()["user_id"]
+    _SENT_INVITES.clear()
+
+    deleted = client.delete(f"/org/users/{user_id}", headers=admin)
+    assert deleted.status_code == 200, deleted.text
+
+    recreated = client.post(
+        "/org/users",
+        json={"username": username, "email": email, "role": "member"},
+        headers=admin,
+    )
+    assert recreated.status_code == 201, recreated.text
+    _SENT_INVITES.clear()
+
+
+def test_deleted_accepted_member_releases_username_and_email(people):
+    admin = people["admin"]
+    username = _new_name("accepted")
+    email = f"{username}@example.com"
+
+    invited = client.post(
+        "/org/users",
+        json={"username": username, "email": email, "role": "member"},
+        headers=admin,
+    )
+    assert invited.status_code == 201, invited.text
+    user_id = invited.json()["user_id"]
+    invite_token = _SENT_INVITES[-1]["token"]
+    _SENT_INVITES.clear()
+
+    accepted = client.post(
+        "/auth/accept-invite",
+        json={"token": invite_token, "password": PASSWORD},
+    )
+    assert accepted.status_code == 200, accepted.text
+    client.cookies.clear()
+
+    member = _login(username)
+    thread_id, _ = _ask(member, "This account should be removed.")
+
+    deleted = client.delete(f"/org/users/{user_id}", headers=admin)
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json()["cleanup_status"] == "not_needed"
+
+    from app.stores.session_store import list_all_thread_ids, thread_message_count
+
+    assert list_all_thread_ids(user_id) == []
+    assert thread_message_count(thread_id) == 0
+
+    recreated = client.post(
+        "/org/users",
+        json={"username": username, "email": email, "role": "member"},
+        headers=admin,
+    )
+    assert recreated.status_code == 201, recreated.text
+    _SENT_INVITES.clear()
+
+
 def test_upload_then_answer_cites_the_document(people):
     cid = _make_collection(
         people["admin"],

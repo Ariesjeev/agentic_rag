@@ -191,6 +191,19 @@ else:
         "http://127.0.0.1:5173",
     ]
 
+# Always trust the canonical frontend URL used for email links and browser
+# requests, even when CORS_ORIGINS lists additional allowed frontend hosts.
+CORS_ORIGINS = list(dict.fromkeys([FRONTEND_URL, *CORS_ORIGINS]))
+
+if APP_ENV != "production":
+    # Local dev frontend URLs are sometimes opened through either loopback
+    # hostname. Keep both trusted even when CORS_ORIGINS is explicitly set.
+    CORS_ORIGINS = list(dict.fromkeys([
+        *CORS_ORIGINS,
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]))
+
 if APP_ENV == "production" and any(
     origin.startswith(("http://localhost", "http://127.0.0.1"))
     for origin in CORS_ORIGINS

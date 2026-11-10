@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../../lib/api';
 import { guard, useAsync } from '../../lib/hooks';
+import { useToast } from '../../components/ToastHost';
 import {
   Button,
   Card,
@@ -38,6 +39,7 @@ function getApiErrorMessage(err, fallback) {
 
 export default function CollectionsPage() {
   const cols = useAsync(() => api('/collections'));
+  const toast = useToast();
   const [form, setForm] = useState(EMPTY);
   const [formError, setFormError] = useState('');
   const [openId, setOpenId] = useState(null);
@@ -105,10 +107,9 @@ export default function CollectionsPage() {
 
       setForm(EMPTY);
       await cols.reload();
+      toast.success(`Collection "${name}" created.`);
     } catch (error) {
-      setFormError(
-        getApiErrorMessage(error, 'Could not create collection.')
-      );
+      toast.error(getApiErrorMessage(error, 'Could not create collection.'));
     }
   }
 
@@ -127,7 +128,7 @@ export default function CollectionsPage() {
           Create collection
         </h2>
 
-        <form onSubmit={guard(create)} className="space-y-2">
+        <form onSubmit={guard(create, toast)} className="space-y-2">
           <div className="flex flex-wrap items-end gap-3">
             <Label className="min-w-[160px] flex-1">
               Name
@@ -217,6 +218,7 @@ export default function CollectionsPage() {
 
 function CollectionManager({ collection, onDeleted }) {
   const id = collection.collection_id;
+  const toast = useToast();
 
   const data = useAsync(async () => {
     const [docs, acl, users, groups] = await Promise.all([
@@ -241,12 +243,9 @@ function CollectionManager({ collection, onDeleted }) {
     [id]
   );
 
-  const [documentDeleteError, setDocumentDeleteError] = useState('');
   const [deletingDocumentId, setDeletingDocumentId] = useState(null);
-  const [deleteError, setDeleteError] = useState('');
   const [isDeletingCollection, setIsDeletingCollection] = useState(false);
   const [retryingJobId, setRetryingJobId] = useState(null);
-  const [retryError, setRetryError] = useState('');
 
   if (!data.data) {
     return (
@@ -267,7 +266,6 @@ function CollectionManager({ collection, onDeleted }) {
 
   async function retryJob(job) {
     if (retryingJobId !== null) return;
-    setRetryError('');
     setRetryingJobId(job.job_id);
 
     try {
@@ -279,6 +277,7 @@ function CollectionManager({ collection, onDeleted }) {
       if (job.job_type === 'collection' && result?.cleanup_status === 'completed') {
         // The collection's own cleanup just finished verifying -- it's
         // now fully gone, not merely excluded from search.
+        toast.success('Collection cleanup completed.');
         await onDeleted(id);
         return;
       }
@@ -290,10 +289,13 @@ function CollectionManager({ collection, onDeleted }) {
         // active in this case).
         await data.reload();
       }
-    } catch (error) {
-      setRetryError(
-        error?.message || 'Could not retry this cleanup job.'
+      toast.success(
+        result?.cleanup_status === 'completed'
+          ? 'Cleanup completed.'
+          : 'Cleanup retry started.'
       );
+    } catch (error) {
+      toast.error(error?.message || 'Could not retry this cleanup job.');
     } finally {
       setRetryingJobId(null);
     }
@@ -308,7 +310,6 @@ function CollectionManager({ collection, onDeleted }) {
 
     if (!confirmed) return;
 
-    setDocumentDeleteError('');
     setDeletingDocumentId(document.doc_id);
 
     try {
@@ -320,22 +321,17 @@ function CollectionManager({ collection, onDeleted }) {
       await Promise.all([data.reload(), cleanupData.reload()]);
 
       if (result?.cleanup_pending) {
-        setDocumentDeleteError(
-          'The document is deleted and excluded from search. Its data ' +
-          'cleanup is still in progress -- see Cleanup status below.'
+        toast.info(
+          'Document deleted from search. Physical cleanup is still processing.'
         );
+      } else {
+        toast.success(`Document "${document.filename}" deleted.`);
       }
     } catch (error) {
-      setDocumentDeleteError(
-        error?.message || 'Could not delete this document. Please retry.'
-      );
+      toast.error(error?.message || 'Could not delete this document. Please retry.');
 
-      // Refresh to show the actual server state, but preserve the error.
-      try {
-        await data.reload();
-      } catch {
-        // Keep the original delete error visible.
-      }
+      // Refresh to show the actual server state.
+      await data.reload();
     } finally {
       setDeletingDocumentId(null);
     }
@@ -343,8 +339,6 @@ function CollectionManager({ collection, onDeleted }) {
 
   async function deleteCollection() {
     if (isDeletingCollection) return;
-
-    setDeleteError('');
 
     const confirmed = window.confirm(
       `Permanently delete collection "${collection.name}" and all its documents, access rules, and related data? This action cannot be undone.`
@@ -358,6 +352,7 @@ function CollectionManager({ collection, onDeleted }) {
       const result = await api(`/collections/${id}`, { method: 'DELETE' });
 
       if (result?.cleanup_status === 'completed') {
+        toast.success(`Collection "${collection.name}" deleted.`);
         await onDeleted(id);
         return;
       }
@@ -366,15 +361,12 @@ function CollectionManager({ collection, onDeleted }) {
       // but physical cleanup didn't finish inline. Stay open so its job
       // (now in the list below) can be checked on and retried, instead of
       // the admin losing track of it the moment this view would close.
-      setDeleteError(
-        'Collection deleted and excluded from search. Physical data ' +
-        'cleanup is still in progress -- see Cleanup status below.'
+      toast.info(
+        'Collection deleted from search. Physical cleanup is still processing.'
       );
       await cleanupData.reload();
     } catch (error) {
-      setDeleteError(
-        error?.message || 'Could not delete this collection.'
-      );
+      toast.error(error?.message || 'Could not delete this collection.');
     } finally {
       setIsDeletingCollection(false);
     }
@@ -397,27 +389,15 @@ function CollectionManager({ collection, onDeleted }) {
 
         <Button
           variant="danger"
-          onClick={guard(deleteCollection)}
+          onClick={guard(deleteCollection, toast)}
           disabled={isDeletingCollection}
         >
           {isDeletingCollection ? 'Deleting…' : 'Delete collection'}
         </Button>
       </div>
 
-      {deleteError && (
-        <p role="alert" className="text-sm text-danger">
-          {deleteError}
-        </p>
-      )}
-
       <div>
         <h3 className="mb-2 font-medium">Documents</h3>
-
-        {documentDeleteError && (
-          <p role="alert" className="mb-3 text-sm text-danger">
-            {documentDeleteError}
-          </p>
-        )}
 
         {docs.length === 0 ? (
           <p className="text-sm text-muted">
@@ -446,7 +426,7 @@ function CollectionManager({ collection, onDeleted }) {
                 size="sm"
                 variant="danger"
                 disabled={deletingDocumentId !== null}
-                onClick={guard(() => deleteDoc(document))}
+                onClick={guard(() => deleteDoc(document), toast)}
               >
                 {deletingDocumentId === document.doc_id
                   ? 'Deleting…'
@@ -467,12 +447,6 @@ function CollectionManager({ collection, onDeleted }) {
             disappeared from the lists above.
           </p>
 
-          {retryError && (
-            <p role="alert" className="mb-3 text-sm text-danger">
-              {retryError}
-            </p>
-          )}
-
           <Table
             head={['Type', 'Target', 'Status', 'Attempts', 'Last error', '']}
             rows={unfinishedJobs.map((job) => [
@@ -491,7 +465,7 @@ function CollectionManager({ collection, onDeleted }) {
                 size="sm"
                 variant="subtle"
                 disabled={retryingJobId !== null || job.status === 'in_progress'}
-                onClick={guard(() => retryJob(job))}
+                onClick={guard(() => retryJob(job), toast)}
               >
                 {retryingJobId === job.job_id ? 'Retrying…' : 'Retry'}
               </Button>,
@@ -519,10 +493,10 @@ function AccessForm({
   groups,
   onSaved,
 }) {
+  const toast = useToast();
   const [userIds, setUserIds] = useState(acl.user_ids);
   const [groupIds, setGroupIds] = useState(acl.group_ids);
   const [visibility, setVisibility] = useState(acl.visibility);
-  const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
   const toggle = (list, setList, value) => {
@@ -536,7 +510,6 @@ function AccessForm({
   async function save() {
     if (saving) return;
 
-    setError('');
     setSaving(true);
 
     try {
@@ -550,8 +523,9 @@ function AccessForm({
       });
 
       await onSaved();
+      toast.success('Collection access updated.');
     } catch (err) {
-      setError(err?.message || 'Could not save collection access.');
+      toast.error(err?.message || 'Could not save collection access.');
     } finally {
       setSaving(false);
     }
@@ -560,12 +534,6 @@ function AccessForm({
   return (
     <div className="space-y-4">
       <h3 className="font-medium">Who can read it</h3>
-
-      {error && (
-        <p role="alert" className="text-sm text-danger">
-          {error}
-        </p>
-      )}
 
       <Label>
         Visibility
@@ -615,7 +583,7 @@ function AccessForm({
 
       <Button
         variant="primary"
-        onClick={guard(save)}
+        onClick={guard(save, toast)}
         disabled={saving}
       >
         {saving ? 'Saving…' : 'Save access'}

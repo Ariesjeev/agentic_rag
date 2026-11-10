@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { api } from '../../lib/api';
 import { PII_ACTIONS, PII_KINDS } from '../../lib/constants';
 import { guard, useAsync } from '../../lib/hooks';
+import { useToast } from '../../components/ToastHost';
 import { Button, Card, Check, Input, Label, Loading, Select, Textarea } from '../../components/ui';
 
 export default function GuardrailsPage() {
@@ -17,6 +18,7 @@ export default function GuardrailsPage() {
 }
 
 function GuardrailForm({ policy, onSaved }) {
+  const toast = useToast();
   const [pii, setPii] = useState(policy.pii);
   const [topics, setTopics] = useState(policy.blocked_topics.join('\n'));
   const [injection, setInjection] = useState(policy.injection_query_action);
@@ -36,7 +38,7 @@ function GuardrailForm({ policy, onSaved }) {
         llm_second_opinion: llmCheck,
       },
     });
-    alert('Guardrails saved. Cached answers made under the old rules will no longer be reused.');
+    toast.success('Guardrails saved. Cached answers made under the old rules will no longer be reused.');
     onSaved();
   }
 
@@ -104,7 +106,7 @@ function GuardrailForm({ policy, onSaved }) {
         />
       </Card>
 
-      <Button variant="primary" onClick={guard(save)}>Save guardrails</Button>
+      <Button variant="primary" onClick={guard(save, toast)}>Save guardrails</Button>
     </div>
   );
 }

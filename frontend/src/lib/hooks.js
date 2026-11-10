@@ -23,13 +23,13 @@ export function useAsync(fn, deps = []) {
 }
 
 
-/** Wraps an action, forwarding event arguments and displaying errors. */
-export function guard(fn) {
+/** Wraps an action, forwarding event arguments and reporting errors as toasts. */
+export function guard(fn, toast) {
   return async (...args) => {
     try {
       await fn(...args);
     } catch (e) {
-      alert(e?.message || 'Something went wrong.');
+      toast.error(e?.message || 'Something went wrong.');
     }
   };
 }

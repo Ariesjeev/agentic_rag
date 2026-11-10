@@ -890,7 +890,7 @@ def get_personal_collection(user: dict) -> Optional[dict]:
         ).mappings().fetchone()
 
     return (
-        get_collection(row["collection_id"], user["org_id"])
+        get_collection(row["collection_id"], user["org_id"], include_deleting=True)
         if row else None
     )
 

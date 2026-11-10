@@ -2,7 +2,7 @@
 routers/org.py
 --------------
 Everything an org admin does:
-  - users:  list / invite / resend invite / suspend / restore / delete
+  - users:  list / invite / edit pending invite / resend / suspend / restore / delete
   - groups: list / create / delete / add member / remove member
   - audit:  read the audit log
   - feedback: read thumbs-up/down + summary + export
@@ -16,9 +16,11 @@ from app.deps import (
     _ip, access_snapshot, get_current_user, member_of_org,
     purge_after_access_loss, require_admin,
 )
+from app.config import logger
 from app.guardrails import guardrail_policy
 from app.models import (
-    AclRequest, CollectionRequest, CreateUserRequest, GroupMemberRequest, GroupRequest,
+    AclRequest, CollectionRequest, CreateUserRequest, GroupMemberRequest,
+    GroupRequest, UpdateInvitedUserRequest,
 )
 from app.services.email import send_invite_email
 from app.services.tokens import INVITE_TTL_SECONDS, new_token
@@ -27,8 +29,9 @@ from app.stores.session_store import (
     delete_thread, get_message, get_question_for_answer, list_all_thread_ids,
 )
 from app.stores.users_store import (
-    count_admins, create_user, delete_user, get_user_by_id, list_org_users,
-    set_invite_token, set_user_active,
+    count_admins, create_user, delete_user, get_user_by_email, get_user_by_id,
+    get_user_by_username, list_org_users, set_invite_token, set_user_active,
+    update_invited_user,
 )
 from app.rag.document_processor import delete_thread_cache, delete_thread_summary
 from app.services import cleanup as cleanup_service
@@ -57,10 +60,22 @@ def org_create_user(body: CreateUserRequest, request: Request, admin: dict = Dep
         raise HTTPException(status_code=400, detail="An account with that email already exists")
 
     # Create the user with NO password hash: they can't log in until they accept the invite.
-    user_id = create_user(
-        body.username, password_hash=None,
-        org_id=admin["org_id"], role=body.role, email=email,
-    )
+    try:
+        user_id = create_user(
+            body.username, password_hash=None,
+            org_id=admin["org_id"], role=body.role, email=email,
+        )
+    except IntegrityError:
+        # The pre-checks provide friendly errors; the database constraints
+        # remain authoritative when concurrent invites race each other.
+        if username_exists(body.username):
+            raise HTTPException(status_code=400, detail="Username already taken")
+        if email_exists(email):
+            raise HTTPException(
+                status_code=400,
+                detail="An account with that email already exists",
+            )
+        raise
 
     plaintext, digest, expires_at = new_token(INVITE_TTL_SECONDS)
     set_invite_token(user_id, digest, expires_at)
@@ -117,6 +132,74 @@ def org_resend_invite(user_id: str, request: Request, admin: dict = Depends(requ
     return {
         "user_id": user_id,
         "message": "A new invitation email has been sent.",
+    }
+
+
+@router.patch("/users/{user_id}")
+def org_update_invited_user(
+    user_id: str,
+    body: UpdateInvitedUserRequest,
+    request: Request,
+    admin: dict = Depends(require_admin),
+):
+    """Update an unaccepted invite; the admin must then send a fresh invite."""
+    target = get_user_by_id(user_id)
+    if not target or target["org_id"] != admin["org_id"]:
+        raise HTTPException(status_code=404, detail="User not found")
+    if target.get("password_hash"):
+        raise HTTPException(
+            status_code=400,
+            detail="Only users who have not accepted their invite can be edited.",
+        )
+
+    username = body.username.strip()
+    email = str(body.email).lower().strip()
+
+    existing_username = get_user_by_username(username)
+    if existing_username and existing_username["user_id"] != user_id:
+        raise HTTPException(status_code=409, detail="Username already taken")
+
+    existing_email = get_user_by_email(email)
+    if existing_email and existing_email["user_id"] != user_id:
+        raise HTTPException(
+            status_code=409,
+            detail="An account with that email already exists",
+        )
+
+    changed = username != target["username"] or email != (target.get("email") or "")
+    if changed:
+        try:
+            updated = update_invited_user(user_id, username, email)
+        except IntegrityError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail="Username or email is already in use.",
+            ) from exc
+
+        if not updated:
+            raise HTTPException(
+                status_code=409,
+                detail="This invite was accepted or changed. Refresh the user list and try again.",
+            )
+
+        audit_store.log(
+            "user_invite_updated",
+            admin,
+            target=user_id,
+            ip=_ip(request),
+            detail={"username": username, "email": email},
+        )
+
+    return {
+        "user_id": user_id,
+        "username": username,
+        "email": email,
+        "invite_invalidated": changed,
+        "message": (
+            "Invite details updated. Send a new invite to deliver a fresh link."
+            if changed
+            else "Invite details are unchanged."
+        ),
     }
 
 
@@ -180,17 +263,21 @@ def org_delete_user(user_id: str, request: Request, admin: dict = Depends(requir
     if target["role"] == "admin" and count_admins(admin["org_id"]) <= 1:
         raise HTTPException(status_code=400, detail="Can't delete the last admin")
 
-    # Every thread this user owns: messages, semantic cache, memory summary, checkpoint state.
+    # Remove external thread state first. If cleanup fails, the thread rows
+    # remain so a retried deletion can find and clean them again.
     for thread_id in list_all_thread_ids(user_id):
-        delete_thread(thread_id)
-        org_store.delete_thread_collections(thread_id)
-        feedback_store.delete_thread_feedback(thread_id)
         for cleanup in (delete_thread_cache, delete_thread_summary, delete_thread_state):
             try:
                 cleanup(thread_id)
-            except Exception:
-                from app.config import logger
+            except Exception as exc:
                 logger.exception("Cleanup %s failed for thread %s", cleanup.__name__, thread_id)
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Could not fully remove this user's chat data. Please retry.",
+                ) from exc
+        org_store.delete_thread_collections(thread_id)
+        feedback_store.delete_thread_feedback(thread_id)
+        delete_thread(thread_id)
 
     # Their personal collection, if they ever uploaded anything privately.
     # This goes through the same durable cleanup path as an explicit
@@ -201,14 +288,14 @@ def org_delete_user(user_id: str, request: Request, admin: dict = Depends(requir
     # deletion itself is aborted: better to leave the user in place than
     # to delete their account while their private documents' vectors are
     # left behind with no durable record of the unfinished cleanup.
+    personal_cleanup_status = "not_needed"
     personal = org_store.get_personal_collection(target)
     if personal:
         try:
-            cleanup_service.request_collection_deletion(
+            cleanup_result = cleanup_service.request_collection_deletion(
                 personal["collection_id"], admin["org_id"],
             )
         except Exception as exc:
-            from app.config import logger
             logger.exception(
                 "Could not queue cleanup for %s's personal collection; "
                 "user deletion aborted", user_id,
@@ -220,13 +307,28 @@ def org_delete_user(user_id: str, request: Request, admin: dict = Depends(requir
                     "documents. Please retry."
                 ),
             ) from exc
+        personal_cleanup_status = (
+            cleanup_result["cleanup_status"] if cleanup_result else "completed"
+        )
+        if personal_cleanup_status == "failed":
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=(
+                    "Cleanup of this user's private documents failed. "
+                    "The account was kept; retry deletion."
+                ),
+            )
 
     org_store.remove_user_everywhere(user_id)
-    delete_user(user_id)
+    if not delete_user(user_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     audit_store.log("user_deleted", admin, target=user_id, ip=_ip(request),
                     detail={"username": target["username"]})
-    return {"message": "Deleted"}
+    return {
+        "message": "Deleted",
+        "cleanup_status": personal_cleanup_status,
+    }
 
 
 # ------------------------------------------------------------------ groups

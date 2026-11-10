@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { api, errorMessage, readJson } from '../lib/api';
 import { DOC_ACCEPT } from '../lib/constants';
+import { useToast } from '../components/ToastHost';
 import { Button, Card, Label, Select, cx } from '../components/ui';
 
 const OK_STATUSES = ['added', 'new_version', 'unchanged'];
@@ -16,12 +17,12 @@ async function sendFiles(path, files, extra = {}) {
 
 export default function UploadPage() {
   const { me, threads, collections, refreshCollections } = useApp();
+  const toast = useToast();
   const isAdmin = me.role === 'admin';
   const fileInput = useRef(null);
 
   const [target, setTarget] = useState('personal');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
   const [results, setResults] = useState([]);
 
   const sharedCollections = collections.filter((c) => !c.owner_user_id);
@@ -29,12 +30,11 @@ export default function UploadPage() {
   async function upload() {
     const files = [...(fileInput.current?.files || [])];
     if (!files.length) {
-      setError('Choose one or more files first.');
+      toast.error('Choose one or more files first.');
       return;
     }
 
     setBusy(true);
-    setError('');
     setResults([]);
 
     try {
@@ -62,9 +62,25 @@ export default function UploadPage() {
 
       setResults(data.results);
       fileInput.current.value = '';
-      refreshCollections().catch(() => {});
+      const succeeded = data.results.filter((result) =>
+        OK_STATUSES.includes(result.status)
+      ).length;
+      if (succeeded) {
+        toast.success(
+          `${succeeded} file${succeeded === 1 ? '' : 's'} processed successfully.`
+        );
+      } else {
+        toast.info('Upload finished. Review the file results for details.');
+      }
+      try {
+        await refreshCollections();
+      } catch (refreshError) {
+        toast.error(
+          `Upload finished, but collections could not be refreshed: ${refreshError?.message || 'Please reload the page.'}`
+        );
+      }
     } catch (e) {
-      setError(e.message);
+      toast.error(e?.message || 'Could not upload the selected files.');
     } finally {
       setBusy(false);
     }
@@ -103,7 +119,6 @@ export default function UploadPage() {
           {busy ? 'Uploading…' : 'Upload'}
         </Button>
 
-        {error && <p className="text-sm text-danger">{error}</p>}
       </Card>
 
       {results.length > 0 && (

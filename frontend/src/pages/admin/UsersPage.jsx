@@ -3,12 +3,14 @@ import { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../lib/api';
 import { guard, useAsync } from '../../lib/hooks';
+import { useToast } from '../../components/ToastHost';
 import {
   Button,
   Card,
   Input,
   Label,
   Loading,
+  Modal,
   Pill,
   Select,
   Table,
@@ -21,14 +23,17 @@ const EMPTY = { username: '', email: '', role: 'member' };
 
 export default function UsersPage() {
   const { me } = useApp();
+  const toast = useToast();
   const users = useAsync(() => api('/org/users'));
 
   const [form, setForm] = useState(EMPTY);
   const [formError, setFormError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [resendingUserId, setResendingUserId] = useState(null);
   const [accessUserId, setAccessUserId] = useState(null);
+  const [editingInvite, setEditingInvite] = useState(null);
+  const [editError, setEditError] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
 
   if (!users.data) {
     return <Loading error={users.error} />;
@@ -44,7 +49,6 @@ export default function UsersPage() {
   async function create(e) {
     e.preventDefault();
     setFormError('');
-    setSuccessMessage('');
 
     const username = form.username.trim();
     const email = form.email.trim().toLowerCase();
@@ -83,13 +87,13 @@ export default function UsersPage() {
       });
 
       setForm(EMPTY);
-      setSuccessMessage(
+      toast.success(
         'Invitation created. The user should receive an invitation email.'
       );
 
       await users.reload();
     } catch (err) {
-      setFormError(
+      toast.error(
         err?.message || 'Could not create the invitation.'
       );
     } finally {
@@ -98,24 +102,66 @@ export default function UsersPage() {
   }
 
   async function remove(u) {
+    const confirmation = u.password_set
+      ? `Delete ${u.username}? Their chats and private documents will be removed. Organisation-shared documents and audit history will be retained.`
+      : `Delete the pending invite for ${u.username}? This frees the username and email so you can invite them again.`;
     const confirmed = window.confirm(
-      `Delete ${u.username}? Their chats and private documents will be removed.`
+      confirmation
     );
 
     if (!confirmed) return;
 
     setFormError('');
-    setSuccessMessage('');
 
     try {
-      await api(`/org/users/${u.user_id}`, {
+      const result = await api(`/org/users/${u.user_id}`, {
         method: 'DELETE',
       });
 
-      setSuccessMessage('User deleted.');
+      toast.success(
+        result?.cleanup_status === 'pending'
+          ? 'User deleted. Private document cleanup is still processing; the email is available for a new invite.'
+          : 'User deleted. Their username and email are available for a new invite.'
+      );
       await users.reload();
     } catch (err) {
-      setFormError(err?.message || 'Could not delete this user.');
+      toast.error(err?.message || 'Could not delete this user.');
+    }
+  }
+
+  async function saveInviteDetails(event) {
+    event.preventDefault();
+    if (!editingInvite) return;
+
+    const username = editingInvite.username.trim();
+    const email = editingInvite.email.trim().toLowerCase();
+    if (!USERNAME_RE.test(username)) {
+      setEditError('Username must be 3–64 characters: letters, digits, _ . @ -');
+      return;
+    }
+    if (!EMAIL_RE.test(email)) {
+      setEditError('Enter a valid email address.');
+      return;
+    }
+
+    setEditError('');
+    setSavingEdit(true);
+    try {
+      const result = await api(`/org/users/${editingInvite.userId}`, {
+        method: 'PATCH',
+        body: { username, email },
+      });
+      setEditingInvite(null);
+      toast.success(
+        result.invite_invalidated
+          ? 'Invite details updated. Click Resend invite to email a fresh link to the new address.'
+          : 'Invite details are unchanged.'
+      );
+      await users.reload();
+    } catch (err) {
+      toast.error(err?.message || 'Could not update this invite.');
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -123,7 +169,6 @@ export default function UsersPage() {
     if (resendingUserId !== null) return;
 
     setFormError('');
-    setSuccessMessage('');
     setResendingUserId(u.user_id);
 
     try {
@@ -131,13 +176,13 @@ export default function UsersPage() {
         method: 'POST',
       });
 
-      setSuccessMessage(
+      toast.success(
         `A new invitation email has been requested for ${u.username}.`
       );
 
       await users.reload();
     } catch (err) {
-      setFormError(
+      toast.error(
         err?.message || 'Could not resend the invitation.'
       );
     } finally {
@@ -157,21 +202,20 @@ export default function UsersPage() {
     }
 
     setFormError('');
-    setSuccessMessage('');
     setAccessUserId(u.user_id);
 
     try {
       await api(`/org/users/${u.user_id}/${suspend ? 'suspend' : 'restore'}`, {
         method: 'POST',
       });
-      setSuccessMessage(
+      toast.success(
         suspend
           ? `${u.username}'s access has been suspended.`
           : `${u.username}'s access has been restored.`
       );
       await users.reload();
     } catch (err) {
-      setFormError(
+      toast.error(
         err?.message ||
           `Could not ${suspend ? 'suspend' : 'restore'} this account.`
       );
@@ -191,7 +235,7 @@ export default function UsersPage() {
           They'll get an email with a link to set their own password.
         </p>
 
-        <form onSubmit={guard(create)} className="space-y-2">
+        <form onSubmit={guard(create, toast)} className="space-y-2">
           <div className="flex flex-wrap items-end gap-3">
             <Label className="min-w-[160px] flex-1">
               Username
@@ -241,11 +285,6 @@ export default function UsersPage() {
             </p>
           )}
 
-          {successMessage && (
-            <p role="status" className="text-sm text-muted">
-              {successMessage}
-            </p>
-          )}
         </form>
       </Card>
 
@@ -280,7 +319,7 @@ export default function UsersPage() {
                     size="sm"
                     variant={u.is_active ? 'danger' : 'subtle'}
                     disabled={accessUserId !== null}
-                    onClick={guard(() => toggleAccess(u))}
+                    onClick={guard(() => toggleAccess(u), toast)}
                   >
                     {accessUserId === u.user_id
                       ? 'Saving…'
@@ -291,21 +330,37 @@ export default function UsersPage() {
                 )}
 
                 {!u.password_set && (
-                  <Button
-                    size="sm"
-                    disabled={resendingUserId !== null}
-                    onClick={guard(() => resend(u))}
-                  >
-                    {resendingUserId === u.user_id
-                      ? 'Resending…'
-                      : 'Resend invite'}
-                  </Button>
+                  <>
+                    <Button
+                      size="sm"
+                      variant="subtle"
+                      onClick={() => {
+                        setEditError('');
+                        setEditingInvite({
+                          userId: u.user_id,
+                          username: u.username,
+                          email: u.email || '',
+                        });
+                      }}
+                    >
+                      Edit invite
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={resendingUserId !== null}
+                      onClick={guard(() => resend(u), toast)}
+                    >
+                      {resendingUserId === u.user_id
+                        ? 'Resending…'
+                        : 'Resend invite'}
+                    </Button>
+                  </>
                 )}
 
                 <Button
                   size="sm"
                   variant="danger"
-                  onClick={guard(() => remove(u))}
+                  onClick={guard(() => remove(u), toast)}
                 >
                   Delete
                 </Button>
@@ -314,6 +369,77 @@ export default function UsersPage() {
           ])}
         />
       </Card>
+
+      <Modal
+        open={Boolean(editingInvite)}
+        onClose={() => {
+          if (!savingEdit) setEditingInvite(null);
+        }}
+        title="Edit pending invite"
+        description="Changing either detail invalidates the old invite link. Resend the invite afterward."
+        footer={
+          <>
+            <Button
+              type="button"
+              onClick={() => setEditingInvite(null)}
+              disabled={savingEdit}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              form="edit-invite-form"
+              variant="primary"
+              disabled={savingEdit}
+            >
+              {savingEdit ? 'Saving…' : 'Save changes'}
+            </Button>
+          </>
+        }
+      >
+        {editingInvite && (
+          <form
+            id="edit-invite-form"
+            onSubmit={saveInviteDetails}
+            className="space-y-4"
+          >
+            <Label>
+              Username
+              <Input
+                className="mt-1"
+                value={editingInvite.username}
+                onChange={(event) =>
+                  setEditingInvite((current) => ({
+                    ...current,
+                    username: event.target.value,
+                  }))
+                }
+                required
+              />
+            </Label>
+            <Label>
+              Email
+              <Input
+                className="mt-1"
+                type="email"
+                value={editingInvite.email}
+                onChange={(event) =>
+                  setEditingInvite((current) => ({
+                    ...current,
+                    email: event.target.value,
+                  }))
+                }
+                required
+              />
+            </Label>
+            {editError && (
+              <p role="alert" className="text-sm text-danger">
+                {editError}
+              </p>
+            )}
+          </form>
+        )}
+      </Modal>
     </div>
   );
 }

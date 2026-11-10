@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { api } from '../../lib/api';
 import { guard, useAsync } from '../../lib/hooks';
+import { useToast } from '../../components/ToastHost';
 import { Button, Card, Input, Loading, Select } from '../../components/ui';
 
 const NAME_MAX = 64;
 
 export default function GroupsPage() {
+  const toast = useToast();
   const groups = useAsync(() => api('/org/groups'));
   const users = useAsync(() => api('/org/users'));
   const [name, setName] = useState('');
@@ -36,33 +38,39 @@ export default function GroupsPage() {
     try {
       await api('/org/groups', { method: 'POST', body: { name: trimmed } });
       setName('');
-      groups.reload();
+      await groups.reload();
+      toast.success(`Group "${trimmed}" created.`);
     } catch (err) {
-      setFormError(err.message);
+      toast.error(err?.message || 'Could not create this group.');
     }
   }
 
   async function removeGroup(g) {
     if (!confirm(`Delete group "${g.name}"? Collections it grants will lose that access.`)) return;
     await api(`/org/groups/${g.group_id}`, { method: 'DELETE' });
-    groups.reload();
+    await groups.reload();
+    toast.success(`Group "${g.name}" deleted.`);
   }
 
   async function addMember(g, userId) {
     await api(`/org/groups/${g.group_id}/members`, { method: 'POST', body: { user_id: userId } });
-    groups.reload();
+    await groups.reload();
+    const user = users.data.find((item) => item.user_id === userId);
+    toast.success(`${user?.username || 'User'} added to "${g.name}".`);
   }
 
   async function removeMember(g, userId) {
     await api(`/org/groups/${g.group_id}/members/${userId}`, { method: 'DELETE' });
-    groups.reload();
+    await groups.reload();
+    const user = users.data.find((item) => item.user_id === userId);
+    toast.success(`${user?.username || 'User'} removed from "${g.name}".`);
   }
 
   return (
     <div className="space-y-6">
       <Card>
         <h2 className="mb-3 text-lg font-semibold">Create group</h2>
-        <form onSubmit={guard(create)} className="space-y-2">
+        <form onSubmit={guard(create, toast)} className="space-y-2">
           <div className="flex gap-3">
             <Input
               placeholder="New group name"
@@ -85,7 +93,7 @@ export default function GroupsPage() {
           <Card key={g.group_id} className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold">{g.name}</h3>
-              <Button size="sm" variant="danger" onClick={guard(() => removeGroup(g))}>
+              <Button size="sm" variant="danger" onClick={guard(() => removeGroup(g), toast)}>
                 Delete group
               </Button>
             </div>
@@ -100,7 +108,7 @@ export default function GroupsPage() {
                   {names[uid] || '(removed)'}
                   <button
                     className="text-muted hover:text-ink"
-                    onClick={guard(() => removeMember(g, uid))}
+                    onClick={guard(() => removeMember(g, uid), toast)}
                     aria-label="Remove member"
                   >
                     ×
@@ -114,7 +122,7 @@ export default function GroupsPage() {
               value=""
               onChange={(e) => {
                 const uid = e.target.value;
-                if (uid) guard(() => addMember(g, uid))();
+                if (uid) guard(() => addMember(g, uid), toast)();
               }}
             >
               <option value="">Add member…</option>

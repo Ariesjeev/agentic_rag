@@ -23,6 +23,7 @@ import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
 import { api } from '../lib/api';
 import { guard } from '../lib/hooks';
+import { useToast } from './ToastHost';
 import { Avatar, Button, MenuItem, Popover, cx } from './ui';
 
 const navClass = ({ isActive }) =>
@@ -54,6 +55,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate = () => {} }) {
   } = useApp();
 
   const { theme, toggle } = useTheme();
+  const toast = useToast();
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
@@ -77,8 +79,9 @@ export default function Sidebar({ mobileOpen = false, onNavigate = () => {} }) {
       });
 
       await refreshThreads();
+      toast.success('Chat renamed.');
     } catch (error) {
-      window.alert(error?.message || 'Could not rename this chat.');
+      toast.error(error?.message || 'Could not rename this chat.');
     } finally {
       setBusyThreadId(null);
     }
@@ -105,8 +108,9 @@ export default function Sidebar({ mobileOpen = false, onNavigate = () => {} }) {
       }
 
       await refreshThreads();
+      toast.success('Chat deleted.');
     } catch (error) {
-      window.alert(error?.message || 'Could not delete this chat.');
+      toast.error(error?.message || 'Could not delete this chat.');
     } finally {
       setBusyThreadId(null);
     }
@@ -193,7 +197,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate = () => {} }) {
                   <button
                     type="button"
                     disabled={isBusy || busyThreadId !== null}
-                    onClick={guard(() => rename(thread))}
+                    onClick={guard(() => rename(thread), toast)}
                     title="Rename"
                     aria-label={`Rename ${thread.title}`}
                     className="rounded p-1 text-muted hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
@@ -204,7 +208,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate = () => {} }) {
                   <button
                     type="button"
                     disabled={isBusy || busyThreadId !== null}
-                    onClick={guard(() => remove(thread))}
+                    onClick={guard(() => remove(thread), toast)}
                     title="Delete"
                     aria-label={`Delete ${thread.title}`}
                     className="rounded p-1 text-muted hover:text-danger disabled:cursor-not-allowed disabled:opacity-50"

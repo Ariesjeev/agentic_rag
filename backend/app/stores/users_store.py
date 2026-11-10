@@ -157,9 +157,13 @@ def set_user_active(user_id: str, is_active: bool) -> bool:
     return result.rowcount > 0
 
 
-def delete_user(user_id: str) -> None:
+def delete_user(user_id: str) -> bool:
     with connect() as session:
-        session.execute(text("DELETE FROM users WHERE user_id = :user_id"), {"user_id": user_id})
+        result = session.execute(
+            text("DELETE FROM users WHERE user_id = :user_id"),
+            {"user_id": user_id},
+        )
+    return result.rowcount > 0
 
 
 def get_user_by_email(email: str) -> Optional[dict]:
@@ -191,6 +195,20 @@ def set_invite_token(user_id: str, token_hash: str, expires_at: float) -> None:
             text("UPDATE users SET invite_token_hash = :h, invite_expires_at = :e WHERE user_id = :u"),
             {"h": token_hash, "e": expires_at, "u": user_id},
         )
+
+
+def update_invited_user(user_id: str, username: str, email: str) -> bool:
+    """Edit an unaccepted invite and invalidate its previous link."""
+    with connect() as session:
+        result = session.execute(
+            text(
+                "UPDATE users SET username = :username, email = :email, "
+                "invite_token_hash = NULL, invite_expires_at = NULL "
+                "WHERE user_id = :user_id AND password_hash IS NULL"
+            ),
+            {"username": username, "email": email, "user_id": user_id},
+        )
+    return result.rowcount > 0
 
 
 def set_reset_token(user_id: str, token_hash: str, expires_at: float) -> None:

@@ -24,7 +24,7 @@ export function ToastProvider({ children }) {
     <ToastCtx.Provider value={toast}>
       {children}
       {createPortal(
-        <div className="pointer-events-none fixed bottom-5 right-5 z-[200] flex w-full max-w-sm flex-col gap-2">
+        <div className="pointer-events-none fixed bottom-5 left-4 right-4 z-[200] mx-auto flex w-auto max-w-sm flex-col gap-2 sm:left-auto sm:right-5 sm:mx-0 sm:w-full">
           {items.map((t) => <ToastItem key={t.id} {...t} onClose={() => remove(t.id)} />)}
         </div>,
         document.body
@@ -43,10 +43,18 @@ function ToastItem({ message, tone, onClose }) {
   const Icon = tone === 'success' ? CheckCircle2 : tone === 'error' ? AlertTriangle : Info;
   const color = tone === 'success' ? 'text-success' : tone === 'error' ? 'text-danger' : 'text-accent';
   return (
-    <div className="glass-strong pointer-events-auto flex items-start gap-3 rounded-2xl p-3.5 animate-fade-up">
+    <div
+      role={tone === 'error' ? 'alert' : 'status'}
+      aria-live={tone === 'error' ? 'assertive' : 'polite'}
+      className="glass-strong pointer-events-auto flex items-start gap-3 rounded-2xl p-3.5 animate-fade-up shadow-lg"
+    >
       <Icon size={18} strokeWidth={1.9} className={cx('mt-0.5 shrink-0', color)} />
       <p className="flex-1 text-sm text-ink">{message}</p>
-      <button onClick={onClose} className="rounded-full p-1 text-muted hover:bg-surface-2 hover:text-ink">
+      <button
+        onClick={onClose}
+        aria-label="Dismiss notification"
+        className="rounded-full p-1 text-muted hover:bg-surface-2 hover:text-ink"
+      >
         <X size={14} />
       </button>
     </div>
