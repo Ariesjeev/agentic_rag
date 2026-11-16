@@ -39,13 +39,13 @@ export default function LandingPage() {
       <div className="mx-auto max-w-[1400px]">
         {/* HERO */}
         <section className="relative mt-3 overflow-hidden rounded-3xl border border-white/5 bg-surface/60 p-5 sm:p-8 md:p-16">
-          <div className="relative grid items-center gap-8 md:gap-14 md:grid-cols-[1.15fr_1fr]">
+          <div className="relative grid items-center gap-8 lg:grid-cols-[1.15fr_1fr] lg:gap-14">
             <div>
               <p className="mb-6 text-sm uppercase tracking-[0.2em]" style={{ color: 'var(--color-blue)' }}>
                 Private document Q&amp;A
               </p>
 
-              <h1 className="font-display text-4xl leading-[1.02] sm:text-6xl md:text-8xl">
+              <h1 className="font-display text-4xl leading-[1.02] sm:text-6xl md:text-7xl lg:text-8xl">
                 Ask your documents.
                 <br />
                 <em style={{ color: 'var(--color-blue)' }}>Trust every answer.</em>
@@ -102,7 +102,7 @@ export default function LandingPage() {
         </section>
 
         {/* PRINCIPLES */}
-        <section className="mt-3 rounded-3xl border border-white/5 bg-surface/40 p-5 sm:p-8 md:p-14">
+        <section id="principles" className="mt-3 scroll-mt-20 rounded-3xl border border-white/5 bg-surface/40 p-5 sm:p-8 md:p-14">
           <h2 className="font-display text-3xl leading-tight sm:text-5xl md:text-6xl">Built around who can see what.</h2>
           <div className="mt-8 grid gap-x-14 gap-y-8 md:mt-14 md:grid-cols-2 md:gap-y-12">
             {principles.map(([title, body, Icon]) => (
@@ -125,7 +125,8 @@ export default function LandingPage() {
 
         {/* HOW — blue section, white cards */}
         <section
-          className="mt-3 overflow-hidden rounded-3xl px-5 py-8 sm:px-8 sm:py-10 md:px-14 md:py-14"
+          id="how"
+          className="mt-3 scroll-mt-20 overflow-hidden rounded-3xl px-5 py-8 sm:px-8 sm:py-10 md:px-14 md:py-14"
           style={{ background: 'var(--color-blue-deep)', color: '#ffffff' }}
         >
           <h2 className="font-display text-4xl leading-tight text-white sm:text-5xl md:text-6xl">Three steps.</h2>

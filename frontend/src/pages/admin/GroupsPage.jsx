@@ -71,7 +71,7 @@ export default function GroupsPage() {
       <Card>
         <h2 className="mb-3 text-lg font-semibold">Create group</h2>
         <form onSubmit={guard(create, toast)} className="space-y-2">
-          <div className="flex gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row">
             <Input
               placeholder="New group name"
               value={name}
@@ -79,7 +79,7 @@ export default function GroupsPage() {
               maxLength={NAME_MAX}
               required
             />
-            <Button variant="primary" type="submit">Create</Button>
+            <Button variant="primary" type="submit" className="w-full sm:w-auto">Create</Button>
           </div>
           {formError && <p className="text-sm text-danger">{formError}</p>}
         </form>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 export function cx(...parts) {
   return parts.filter(Boolean).join(' ');
@@ -14,7 +15,7 @@ const VARIANTS = {
 };
 const SIZES = {
   md:   'rounded-full px-4 py-2 text-sm',
-  sm:   'rounded-full px-3 py-1 text-xs',
+  sm:   'min-h-9 rounded-full px-3 py-2 text-xs',
   icon: 'rounded-full h-9 w-9 grid place-items-center p-0',
 };
 
@@ -46,10 +47,10 @@ export const Label = ({ className, children }) => (
 
 /* ---------------- Cards ---------------- */
 export function Card({ className, children }) {
-  return <div className={cx('rounded-2xl border border-border bg-surface p-6', className)}>{children}</div>;
+  return <div className={cx('rounded-2xl border border-border bg-surface p-4 sm:p-6', className)}>{children}</div>;
 }
 export function GlassCard({ className, children }) {
-  return <div className={cx('glass rounded-2xl p-6', className)}>{children}</div>;
+  return <div className={cx('glass rounded-2xl p-4 sm:p-6', className)}>{children}</div>;
 }
 
 /* ---------------- Badge / Avatar ---------------- */
@@ -141,16 +142,28 @@ export function Modal({ open, onClose, title, description, children, footer, siz
   }, [open, onClose]);
   if (!open) return null;
   const widths = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl' };
-  return (
-    <div className="fixed inset-0 z-[100] grid place-items-center p-4">
-      <div className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={onClose} />
-      <div className={cx('glass-strong relative w-full rounded-2xl p-6 animate-fade-up', widths[size])}>
-        {title && <h3 className="font-display text-2xl leading-tight">{title}</h3>}
-        {description && <p className="mt-1 text-sm text-muted">{description}</p>}
+  return createPortal(
+    <div className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto p-3 sm:p-5">
+      <button
+        type="button"
+        aria-label="Close dialog"
+        className="absolute inset-0 cursor-default bg-black/65 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? 'app-modal-title' : undefined}
+        aria-describedby={description ? 'app-modal-description' : undefined}
+        className={cx('glass-strong relative my-auto max-h-[calc(100dvh-1.5rem)] w-full overflow-y-auto rounded-2xl p-4 animate-fade-up sm:max-h-[calc(100dvh-2.5rem)] sm:p-6', widths[size])}
+      >
+        {title && <h3 id="app-modal-title" className="font-display text-2xl leading-tight">{title}</h3>}
+        {description && <p id="app-modal-description" className="mt-1 text-sm text-muted">{description}</p>}
         {children && <div className="mt-5">{children}</div>}
-        {footer && <div className="mt-6 flex justify-end gap-2">{footer}</div>}
+        {footer && <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -209,7 +222,7 @@ export const Loading = ({ error }) => (
 export function Table({ head, rows }) {
   return (
     <div className="overflow-x-auto rounded-2xl border border-border bg-surface/60">
-      <table className="w-full border-collapse text-sm">
+      <table className="w-full min-w-[600px] border-collapse text-sm">
         <thead className="bg-surface-2/60">
           <tr>{head.map((h, i) => (
             <th key={i} className="border-b border-border px-4 py-3 text-left text-xs font-medium text-muted">{h}</th>

@@ -31,6 +31,8 @@ export default function UsersPage() {
   const [busy, setBusy] = useState(false);
   const [resendingUserId, setResendingUserId] = useState(null);
   const [accessUserId, setAccessUserId] = useState(null);
+  const [pendingAction, setPendingAction] = useState(null);
+  const [confirmingAction, setConfirmingAction] = useState(false);
   const [editingInvite, setEditingInvite] = useState(null);
   const [editError, setEditError] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
@@ -101,34 +103,6 @@ export default function UsersPage() {
     }
   }
 
-  async function remove(u) {
-    const confirmation = u.password_set
-      ? `Delete ${u.username}? Their chats and private documents will be removed. Organisation-shared documents and audit history will be retained.`
-      : `Delete the pending invite for ${u.username}? This frees the username and email so you can invite them again.`;
-    const confirmed = window.confirm(
-      confirmation
-    );
-
-    if (!confirmed) return;
-
-    setFormError('');
-
-    try {
-      const result = await api(`/org/users/${u.user_id}`, {
-        method: 'DELETE',
-      });
-
-      toast.success(
-        result?.cleanup_status === 'pending'
-          ? 'User deleted. Private document cleanup is still processing; the email is available for a new invite.'
-          : 'User deleted. Their username and email are available for a new invite.'
-      );
-      await users.reload();
-    } catch (err) {
-      toast.error(err?.message || 'Could not delete this user.');
-    }
-  }
-
   async function saveInviteDetails(event) {
     event.preventDefault();
     if (!editingInvite) return;
@@ -190,18 +164,7 @@ export default function UsersPage() {
     }
   }
 
-  async function toggleAccess(u) {
-    const suspend = u.is_active;
-    if (
-      suspend &&
-      !window.confirm(
-        `Suspend ${u.username}? They will be signed out and unable to access the app. Their data will be kept.`
-      )
-    ) {
-      return;
-    }
-
-    setFormError('');
+  async function changeAccess(u, suspend) {
     setAccessUserId(u.user_id);
 
     try {
@@ -224,8 +187,112 @@ export default function UsersPage() {
     }
   }
 
+  function requestAccessChange(u) {
+    if (u.is_active) {
+      setPendingAction({ type: 'suspend', user: u });
+      return;
+    }
+
+    return changeAccess(u, false);
+  }
+
+  async function confirmMemberAction() {
+    if (!pendingAction || confirmingAction) return;
+    const { type, user } = pendingAction;
+    setConfirmingAction(true);
+
+    try {
+      if (type === 'delete') {
+        const result = await api(`/org/users/${user.user_id}`, {
+          method: 'DELETE',
+        });
+        toast.success(
+          result?.cleanup_status === 'pending'
+            ? 'User deleted. Private document cleanup is still processing; the email is available for a new invite.'
+            : 'User deleted. Their username and email are available for a new invite.'
+        );
+      } else {
+        await api(`/org/users/${user.user_id}/suspend`, { method: 'POST' });
+        toast.success(`${user.username}'s access has been suspended.`);
+      }
+
+      setPendingAction(null);
+      await users.reload();
+    } catch (err) {
+      toast.error(
+        err?.message ||
+          `Could not ${type === 'delete' ? 'delete' : 'suspend'} this account.`
+      );
+    } finally {
+      setConfirmingAction(false);
+    }
+  }
+
+  function renderUserActions(u) {
+    if (u.user_id === me.user_id) {
+      return <span className="text-xs text-muted">(you)</span>;
+    }
+
+    return (
+      <div className="flex flex-wrap gap-2">
+        {u.role === 'member' && (
+          <Button
+            size="sm"
+            variant={u.is_active ? 'danger' : 'subtle'}
+            disabled={accessUserId !== null}
+            onClick={guard(() => requestAccessChange(u), toast)}
+          >
+            {accessUserId === u.user_id
+              ? 'Saving…'
+              : u.is_active
+                ? 'Suspend'
+                : 'Restore access'}
+          </Button>
+        )}
+
+        {!u.password_set && (
+          <>
+            <Button
+              size="sm"
+              variant="subtle"
+              onClick={() => {
+                setEditError('');
+                setEditingInvite({
+                  userId: u.user_id,
+                  username: u.username,
+                  email: u.email || '',
+                });
+              }}
+            >
+              Edit invite
+            </Button>
+            <Button
+              size="sm"
+              disabled={resendingUserId !== null}
+              onClick={guard(() => resend(u), toast)}
+            >
+              {resendingUserId === u.user_id ? 'Resending…' : 'Resend invite'}
+            </Button>
+          </>
+        )}
+
+        <Button
+          size="sm"
+          variant="danger"
+          onClick={() => setPendingAction({ type: 'delete', user: u })}
+        >
+          Delete
+        </Button>
+      </div>
+    );
+  }
+
+  function userStatus(u) {
+    return !u.is_active ? 'suspended' : u.password_set ? 'active' : 'invited';
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-4 sm:space-y-6">
       <Card>
         <h2 className="mb-3 text-lg font-semibold">
           Invite a user
@@ -236,8 +303,8 @@ export default function UsersPage() {
         </p>
 
         <form onSubmit={guard(create, toast)} className="space-y-2">
-          <div className="flex flex-wrap items-end gap-3">
-            <Label className="min-w-[160px] flex-1">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_auto_auto] xl:items-end">
+            <Label className="min-w-0">
               Username
               <Input
                 className="mt-1"
@@ -247,7 +314,7 @@ export default function UsersPage() {
               />
             </Label>
 
-            <Label className="min-w-[200px] flex-1">
+            <Label className="min-w-0">
               Email
               <Input
                 className="mt-1"
@@ -258,10 +325,10 @@ export default function UsersPage() {
               />
             </Label>
 
-            <Label>
+            <Label className="sm:col-span-1">
               Role
               <Select
-                className="mt-1"
+                className="mt-1 w-full sm:w-auto"
                 value={form.role}
                 onChange={set('role')}
               >
@@ -274,6 +341,7 @@ export default function UsersPage() {
               variant="primary"
               type="submit"
               disabled={busy}
+              className="w-full sm:w-auto"
             >
               {busy ? 'Inviting…' : 'Send invite'}
             </Button>
@@ -288,87 +356,85 @@ export default function UsersPage() {
         </form>
       </Card>
 
-      <Card>
+      <Card className="min-w-0">
         <h2 className="mb-3 text-lg font-semibold">
           Members
         </h2>
 
-        <Table
+        <div className="hidden md:block">
+          <Table
           head={['Username', 'Email', 'Role', 'Status', '']}
           rows={users.data.map((u) => [
-            u.username,
+            <span className="break-all" key={`${u.user_id}-username`}>{u.username}</span>,
             u.email || '—',
             <Pill key={`${u.user_id}-role`}>
               {u.role}
             </Pill>,
             <Pill key={`${u.user_id}-status`}>
-              {!u.is_active
-                ? 'suspended'
-                : u.password_set
-                  ? 'active'
-                  : 'invited'}
+              {userStatus(u)}
             </Pill>,
-            u.user_id === me.user_id ? (
-              <span className="text-xs text-muted">
-                (you)
-              </span>
-            ) : (
-              <div className="flex gap-2">
-                {u.role === 'member' && (
-                  <Button
-                    size="sm"
-                    variant={u.is_active ? 'danger' : 'subtle'}
-                    disabled={accessUserId !== null}
-                    onClick={guard(() => toggleAccess(u), toast)}
-                  >
-                    {accessUserId === u.user_id
-                      ? 'Saving…'
-                      : u.is_active
-                        ? 'Suspend'
-                        : 'Restore access'}
-                  </Button>
-                )}
-
-                {!u.password_set && (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="subtle"
-                      onClick={() => {
-                        setEditError('');
-                        setEditingInvite({
-                          userId: u.user_id,
-                          username: u.username,
-                          email: u.email || '',
-                        });
-                      }}
-                    >
-                      Edit invite
-                    </Button>
-                    <Button
-                      size="sm"
-                      disabled={resendingUserId !== null}
-                      onClick={guard(() => resend(u), toast)}
-                    >
-                      {resendingUserId === u.user_id
-                        ? 'Resending…'
-                        : 'Resend invite'}
-                    </Button>
-                  </>
-                )}
-
-                <Button
-                  size="sm"
-                  variant="danger"
-                  onClick={guard(() => remove(u), toast)}
-                >
-                  Delete
-                </Button>
-              </div>
-            ),
+            renderUserActions(u),
           ])}
         />
+        </div>
+
+        <div className="space-y-3 md:hidden">
+          {users.data.map((u) => (
+            <article
+              key={u.user_id}
+              className="min-w-0 rounded-xl border border-border bg-surface-2/40 p-3"
+            >
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="break-all font-medium text-ink">{u.username}</p>
+                  <p className="mt-1 break-all text-sm text-muted">{u.email || '—'}</p>
+                </div>
+                <Pill>{userStatus(u)}</Pill>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <Pill>{u.role}</Pill>
+                {renderUserActions(u)}
+              </div>
+            </article>
+          ))}
+        </div>
       </Card>
+
+      <Modal
+        open={Boolean(pendingAction)}
+        onClose={() => {
+          if (!confirmingAction) setPendingAction(null);
+        }}
+        title={pendingAction?.type === 'delete' ? 'Delete this member?' : 'Suspend this member?'}
+        description={
+          pendingAction?.type === 'delete'
+            ? `Are you sure you want to delete ${pendingAction.user.username}? Their chats and private documents will be removed. Organisation-shared documents and audit history will be retained.`
+            : `Are you sure you want to suspend ${pendingAction?.user.username}? They will be signed out and cannot access the app. Their account and data will be kept.`
+        }
+        footer={
+          <>
+            <Button
+              onClick={() => setPendingAction(null)}
+              disabled={confirmingAction}
+              className="w-full sm:w-auto"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={guard(confirmMemberAction, toast)}
+              disabled={confirmingAction}
+              className="w-full sm:w-auto"
+            >
+              {confirmingAction
+                ? 'Please wait…'
+                : pendingAction?.type === 'delete'
+                  ? 'Delete member'
+                  : 'Suspend member'}
+            </Button>
+          </>
+        }
+      />
 
       <Modal
         open={Boolean(editingInvite)}

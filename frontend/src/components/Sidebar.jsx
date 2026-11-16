@@ -22,9 +22,8 @@ import {
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
 import { api } from '../lib/api';
-import { guard } from '../lib/hooks';
 import { useToast } from './ToastHost';
-import { Avatar, Button, MenuItem, Popover, cx } from './ui';
+import { Avatar, Button, Input, Label, MenuItem, Modal, Popover, cx } from './ui';
 
 const navClass = ({ isActive }) =>
   cx(
@@ -60,18 +59,27 @@ export default function Sidebar({ mobileOpen = false, onNavigate = () => {} }) {
   const { pathname } = useLocation();
 
   const [busyThreadId, setBusyThreadId] = useState(null);
+  const [threadAction, setThreadAction] = useState(null);
+  const [renameTitle, setRenameTitle] = useState('');
   const isAdmin = me?.role === 'admin';
 
-  async function rename(thread) {
+  function openRename(thread) {
     if (busyThreadId !== null) return;
+    setRenameTitle(thread.title);
+    setThreadAction({ type: 'rename', thread });
+  }
 
-    const title = window.prompt('Rename chat', thread.title);
-    const trimmedTitle = title?.trim();
-
-    if (!trimmedTitle || trimmedTitle === thread.title) return;
+  async function saveRename(event) {
+    event.preventDefault();
+    const thread = threadAction?.thread;
+    const trimmedTitle = renameTitle.trim();
+    if (!thread || !trimmedTitle || busyThreadId !== null) return;
+    if (trimmedTitle === thread.title) {
+      setThreadAction(null);
+      return;
+    }
 
     setBusyThreadId(thread.thread_id);
-
     try {
       await api(`/threads/${thread.thread_id}`, {
         method: 'PATCH',
@@ -79,6 +87,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate = () => {} }) {
       });
 
       await refreshThreads();
+      setThreadAction(null);
       toast.success('Chat renamed.');
     } catch (error) {
       toast.error(error?.message || 'Could not rename this chat.');
@@ -87,15 +96,14 @@ export default function Sidebar({ mobileOpen = false, onNavigate = () => {} }) {
     }
   }
 
-  async function remove(thread) {
+  function openDelete(thread) {
     if (busyThreadId !== null) return;
+    setThreadAction({ type: 'delete', thread });
+  }
 
-    const confirmed = window.confirm(
-      'Delete this chat and its messages?'
-    );
-
-    if (!confirmed) return;
-
+  async function removeThread() {
+    const thread = threadAction?.thread;
+    if (!thread || busyThreadId !== null) return;
     setBusyThreadId(thread.thread_id);
 
     try {
@@ -108,6 +116,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate = () => {} }) {
       }
 
       await refreshThreads();
+      setThreadAction(null);
       toast.success('Chat deleted.');
     } catch (error) {
       toast.error(error?.message || 'Could not delete this chat.');
@@ -122,6 +131,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate = () => {} }) {
   ];
 
   return (
+    <>
     <aside
       className={cx(
         'glass flex min-h-0 flex-col rounded-2xl border border-border',
@@ -193,14 +203,14 @@ export default function Sidebar({ mobileOpen = false, onNavigate = () => {} }) {
                   <span className="truncate">{thread.title}</span>
                 </NavLink>
 
-                <div className="hidden items-center gap-0.5 pr-1 group-hover:flex">
+                <div className="flex items-center gap-0.5 pr-1">
                   <button
                     type="button"
                     disabled={isBusy || busyThreadId !== null}
-                    onClick={guard(() => rename(thread), toast)}
+                    onClick={() => openRename(thread)}
                     title="Rename"
                     aria-label={`Rename ${thread.title}`}
-                    className="rounded p-1 text-muted hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50 md:h-8 md:w-8 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
                   >
                     <Pencil size={14} strokeWidth={1.75} />
                   </button>
@@ -208,10 +218,10 @@ export default function Sidebar({ mobileOpen = false, onNavigate = () => {} }) {
                   <button
                     type="button"
                     disabled={isBusy || busyThreadId !== null}
-                    onClick={guard(() => remove(thread), toast)}
+                    onClick={() => openDelete(thread)}
                     title="Delete"
                     aria-label={`Delete ${thread.title}`}
-                    className="rounded p-1 text-muted hover:text-danger disabled:cursor-not-allowed disabled:opacity-50"
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted hover:bg-danger/10 hover:text-danger disabled:cursor-not-allowed disabled:opacity-50 md:h-8 md:w-8 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
                   >
                     <Trash2 size={14} strokeWidth={1.75} />
                   </button>
@@ -404,5 +414,74 @@ export default function Sidebar({ mobileOpen = false, onNavigate = () => {} }) {
         </div>
       </div>
     </aside>
+    <Modal
+      open={Boolean(threadAction)}
+      onClose={() => {
+        if (busyThreadId === null) setThreadAction(null);
+      }}
+      title={threadAction?.type === 'rename' ? 'Rename chat' : 'Delete chat?'}
+      description={
+        threadAction?.type === 'rename'
+          ? 'Choose a clear name so you can find this conversation later.'
+          : `Are you sure you want to delete “${threadAction?.thread.title}”? Its messages will also be permanently deleted.`
+      }
+      footer={
+        threadAction?.type === 'rename' ? (
+          <>
+            <Button
+              type="button"
+              onClick={() => setThreadAction(null)}
+              disabled={busyThreadId !== null}
+              className="w-full sm:w-auto"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              form="rename-chat-form"
+              variant="primary"
+              disabled={busyThreadId !== null || !renameTitle.trim()}
+              className="w-full sm:w-auto"
+            >
+              {busyThreadId !== null ? 'Saving…' : 'Save name'}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              onClick={() => setThreadAction(null)}
+              disabled={busyThreadId !== null}
+              className="w-full sm:w-auto"
+            >
+              Keep chat
+            </Button>
+            <Button
+              variant="danger"
+              onClick={removeThread}
+              disabled={busyThreadId !== null}
+              className="w-full sm:w-auto"
+            >
+              {busyThreadId !== null ? 'Deleting…' : 'Delete chat'}
+            </Button>
+          </>
+        )
+      }
+    >
+      {threadAction?.type === 'rename' && (
+        <form id="rename-chat-form" onSubmit={saveRename}>
+          <Label>
+            Chat name
+            <Input
+              className="mt-1"
+              autoFocus
+              maxLength={120}
+              value={renameTitle}
+              onChange={(event) => setRenameTitle(event.target.value)}
+            />
+          </Label>
+        </form>
+      )}
+    </Modal>
+    </>
   );
 }
